@@ -73,7 +73,7 @@ Y proporcionamos la contraseña que le dimos al crear el contenedor, en nuestro 
 
 Con esto podremos empezar a crear datos para usar en nuestro ejemplo.
 
-![Creación de tablas y registros](./20230817104815.png)
+![Creación de tablas y registros](./20230817105234.png)
 
 ![Creación de tablas y registros 2](./20230817105442.png)
 
