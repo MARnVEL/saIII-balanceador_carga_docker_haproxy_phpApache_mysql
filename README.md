@@ -39,7 +39,7 @@ docker pull haproxy:latest
 ```
 
 
-![Descarga de una imagen de docker hub](./Pasted image 20230816160930.png)
+![Descarga de una imagen de docker hub](./20230816160930.png)
 
 ### Creamos los contenedores
 
