@@ -1,3 +1,4 @@
+
 ## Descripción:
 > Se crearán 4 contenedores con Docker:
 > 1. Un contenedor con la imagen **mysql:debian**
@@ -38,7 +39,7 @@ docker pull haproxy:latest
 ```
 
 
-![[Pasted image 20230816160930.png]]
+![Descarga de una imagen de docker hub](./Pasted image 20230816160930.png)
 
 ### Creamos los contenedores
 
@@ -58,59 +59,149 @@ La contraseña para este contenedor: **`-e MYSQL_ROOT_PASSWORD=pass` debe ser la
 
 ##### Configuración del contenedor mysql
 
+Para ingresar al contenedor ejecutamos:
+```
+docker exec -it mimsql bash
+```
+
+Luego para ingresar al gestor de bases de datos:
+```
+mysql -u root -p
+```
+Y proporcionamos la contraseña que le dimos al crear el contenedor, en nuestro caso: `pass`
+
 ![[Pasted image 20230817104815.png]]
+
+Con esto podremos empezar a crear datos para usar en nuestro ejemplo.
 
 ![[Pasted image 20230817105234.png]]
 
 ![[Pasted image 20230817105442.png]]
+
+Para salir ejecutamos:
+```
+exit
+```
+
+Como debemos saber la IP de nuestro contenedor mysql para luego conectarlo con los contenedores de los servidores, ejecutamos:
 
 ```
 docker inspect mimsql
 ```
 ![[Pasted image 20230817105648.png]]
 
+#### 2do. Contenedor del servidor 1 de php:apache
+
+Antes de crear el contenedor debemos tener en cuenta algunas configuraciones.
+##### Configuración del fichero index.php
+Este fichero es el que se "servirá" cuando el contenedor del servidor se ejecute. Por lo tanto, es en este fichero donde debemos configurar la conexión a la base de datos (al contenedor de nuestro sistema gestor de bases de datos).
+La configuración es:
+```
+<?php
+    $servername = "172.17.0.2";
+    $username = "root";
+    $password = "pass";
+    $dbname = "prueba";
+
+```
+
+Vemos que la variable `$servername` **alojará la ip del contenedor que ejecuta el sistema gestor de bases de datos**.
+Y la variable `$pass="pass"` es la misma que la usada al crear el contenedor.
+
+
+##### Creamos el contenedor
 
 ```
 docker run -d -p 8088:80 --name myServer -v "C:\sitio1":/var/www/html php:apache-bullseye
 ```
 ![[Pasted image 20230817113133.png]]
 
+Vemos que estamos creando un volumen, que persistirá los datos del sistema de archivos del contendor en la ruta `/var/www/html` en nuestro sistema de archivos de nuestra máquina local `C:\sitio1`
 
+###### Importante:
+Es en esta ruta (`C:\sitio1`) donde deberá estar alojado el fichero **index.php**. Así el contenedor del servidor creado podrá servir nuestro sitio web que se conectará con la base de datos del contenedor mysql.
+
+##### Configuración del contenedor
+
+
+Para ingresar al contenedor ejecutamos:
 ```
 docker exec -it myServer bash
 ```
 
+Actualizamos los paquetes instalados:
 ```
 apt-get update
 ```
 
 ![[Pasted image 20230817113226.png]]
 
+Ahora debemos instalar ciertos paquetes o "**drivers**" en este contenedor para que el servidor tenga la capacidad de conectarse a la base de datos:
+
 
 ```
 apt-get install -y libmysqli-dev
+```
+
+```
 docker-php-ext-install mysqli
+```
+
+```
 docker-php-ext-enable mysqli
 ```
 
+##### Otros
+Como debemos saber la IP de nuestro contenedor **php:apache** para luego utilizarla en la configuración del balanceador, ejecutamos:
+
+```
+docker inspect myServer
+```
 
 
-#### Creación del contenedor para el segundo servidor
+#### 3ro. Contenedor del servidor 2 de php:apache
 
+Antes de crear el contenedor debemos tener en cuenta algunas configuraciones.
+##### Configuración del fichero index.php
+Este fichero es el que se "servirá" cuando el contenedor del servidor se ejecute. Por lo tanto, es en este fichero donde debemos configurar la conexión a la base de datos (al contenedor de nuestro sistema gestor de bases de datos).
+La configuración es:
+```
+<?php
+    $servername = "172.17.0.2";
+    $username = "root";
+    $password = "pass";
+    $dbname = "prueba";
+
+```
+
+Vemos que la variable `$servername` **alojará la ip del contenedor que ejecuta el sistema gestor de bases de datos**.
+Y la variable `$pass="pass"` es la misma que la usada al crear el contenedor.
+
+
+##### Creamos el contenedor
 
 ```
 docker run -d -p 8087:80 --name myServer2 -v "C:\sitio2":/var/www/html php:apache-bullseye
 ```
 
+Vemos que estamos creando un volumen, que persistirá los datos del sistema de archivos del contendor en la ruta `/var/www/html` en nuestro sistema de archivos de nuestra máquina local `C:\sitio2`
 
+###### Importante:
+Es en esta ruta (`C:\sitio2`) donde deberá estar alojado el fichero **index.php**. Así el contenedor del servidor creado podrá servir nuestro sitio web que se conectará con la base de datos del contenedor mysql.
 
+##### Configuración del contenedor
+
+Para ingresar al contenedor ejecutamos:
 ```
 docker exec -it myServer2 bash
 ```
 
+Actualizamos los paquetes instalados:
 ```
 apt-get update
 ```
+
+Ahora debemos instalar ciertos paquetes o "**drivers**" en este contenedor para que el servidor tenga la capacidad de conectarse a la base de datos:
 
 ```
 apt-get install -y libmysqli-dev
@@ -124,8 +215,15 @@ docker-php-ext-install mysqli
 docker-php-ext-enable mysqli
 ```
 
+##### Otros
+Como debemos saber la IP de nuestro contenedor **php:apache** para luego utilizarla en la configuración del balanceador, ejecutamos:
 
-#### Creación del contenedor para el balanceador
+```
+docker inspect myServer2
+```
+
+
+#### 4to. Contenedor para el balanceador haproxy
 
 ##### Crear un directorio en nuestra máquina para mapear un volumen al contenedor del balanceador.
 En mi caso:
@@ -136,24 +234,26 @@ C:\volumenBalanceador
  * En este fichero colocar las configuraciones de nuestro balanceador:
 ```
 global
-	pidfile /tmp/haproxy.pid
-	log 127.0.0.1 local0 info
+    log 127.0.0.1 local0 notice
+    pidfile /tmp/haproxy.pid
+    daemon
 defaults
-	log global
-	mode http
-	option httplog
-	option dontlognull
-	timeout connect 5000
-	timeout client 50000
-	timeout server 50000
+    log global
+    mode http
+    option httplog
+    option dontlognull
+    timeout connect 5000
+    timeout client 50000
+    timeout server 50000
 frontend http_front
-	bind 0.0.0.0:80
-	default_backend http_back
+    bind *:80
+    mode http
+    default_backend http_back
 backend http_back
-	balance roundrobin
-	cookie JSESSIONID prefix indirect nocache
-	server MyServer 172.17.0.4:80 check
-    server MyServer2 172.17.0.3:80 check
+    balance roundrobin
+    cookie JSESSIONID prefix indirect nocache
+    server myServer 172.17.0.4:80 check
+    server myServer2 172.17.0.3:80 check
 
 ```
 
@@ -162,7 +262,7 @@ backend http_back
 
 
 
- * Otra configuración:
+ * Otras configuraciones:
 ```
 global
     maxconn 256
@@ -263,47 +363,21 @@ listen stats
     stats uri /haproxy
 ```
 
-
-
 ##### Crear el contenedor:
 
 ```
 docker run -d -p 8085:80 --name balancer -v "C:\volumenBalanceador":/usr/local/etc/haproxy/ haproxy:latest
 ```
 
+Vemos que estamos creando un volumen, que persistirá los datos del sistema de archivos del contendor en la ruta `/usr/local/etc/haproxy/` en nuestro sistema de archivos de nuestra máquina local `C:\volumenBalanceador`
+
+###### Importante:
+Es en esta ruta (`C:\volumenBalanceador`) donde deberá estar alojado el fichero **haproxy.cfg**. Así, el contenedor del balanceador creado podrá controlar las peticiones que llegan a este y redirigirlas a los dos servidores que configuramos previamente. Al llegar una petición, el balanceador la redirigirá al servidor 1, al llegar la siguiente petición, la redirigirá al servidor 2, si llega otra petición, esta será redirigida al servidor 1; y así sucesivamente.
+
+![[Pasted image 20230818142826.png]]
 
 
-```
-docker exec -it myServer2 bash
-```
-
-```
-apt-get update
-```
-
-```
-apt-get install -y libmysqli-dev
-```
-
-```
-docker-php-ext-install mysqli
-```
-
-```
-docker-php-ext-enable mysqli
-```
-
-
-
-
-
-
-
-
-
-
-
-
+![[Pasted image 20230818142803.png]]
 
 
 
